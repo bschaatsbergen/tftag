@@ -30,7 +30,7 @@ tftag "all" {
   }
 }
 
-tftag "finance" {
+tftag "developers" {
   tags = {
     Straw = "Berry",
   }
