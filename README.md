@@ -60,8 +60,8 @@ INFO[0000] Tagged `aws_sns_topic.user_updates` in main.tf
 ### Your resources are updated
 
 ```
-resource "aws_sns_topic" "user_updates" {
-  name = "user-updates-topic"
+resource "aws_s3_bucket" "users" {
+  bucket = "users-bucket"
   tags = {
     Pine  = "Apple"
     Straw = "Berry"
