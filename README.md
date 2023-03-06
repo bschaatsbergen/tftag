@@ -39,7 +39,7 @@ tftag "developers" {
 
 ### Optionally apply a filter on a resource
 
-```
+```hcl
 resource "aws_s3_bucket" "users" {
   bucket = "users-bucket"
 }
