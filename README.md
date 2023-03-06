@@ -54,6 +54,7 @@ resource "aws_sns_topic" "user_updates" {
 
 ```console
 $ tftag
+INFO[0000] Tagged `aws_s3_bucket.users` in main.tf
 INFO[0000] Tagged `aws_sns_topic.user_updates` in main.tf
 ```
 
