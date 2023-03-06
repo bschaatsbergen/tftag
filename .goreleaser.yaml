@@ -1,0 +1,41 @@
+project_name: "tftag"
+
+# before are hooks that will be run before any builds are done, so good to put install scripts and stuff that your builds need here
+before:
+  hooks:
+    # Remove unused packaged from the build process
+    - go mod tidy
+    - go generate
+
+builds:
+  - main: ./main.go
+    binary: tftag
+    goos: ["linux", "darwin", "windows"]
+    goarch: ["386", "amd64", "arm64"]
+    ldflags:
+      - -s -w -X "github.com/bschaatsbergen/tftag/cmd.version={{.Version}}"
+    env:
+      - CGO_ENABLED=0
+
+changelog:
+  sort: "asc"
+  filters:
+    exclude: ["^docs:", "demo", "^hugo:", "Merge pull request", "Merge branch"]
+
+brews:
+  - tap:
+      owner: bschaatsbergen
+      name: homebrew-tftag
+    name: tftag
+    homepage: "https://github.com/bschaatsbergen/tftag"
+    description: "DRY approach to tagging Terraform resources"
+    license: "MIT"
+    skip_upload: auto
+    commit_author:
+      name: Bruno Schaatsbergen
+      email: git@bschaatsbergen.com
+    folder: Formula
+    install: |-
+      bin.install "tftag"
+    test: |
+      system "#{bin}/tftag -v"
