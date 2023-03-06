@@ -59,7 +59,7 @@ INFO[0000] Tagged `aws_sns_topic.user_updates` in main.tf
 
 ### Your resources are updated
 
-```
+```hcl
 resource "aws_s3_bucket" "users" {
   bucket = "users-bucket"
   tags = {
