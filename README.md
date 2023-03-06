@@ -40,6 +40,10 @@ tftag "finance" {
 ### Optionally apply a filter on a resource
 
 ```
+resource "aws_s3_bucket" "users" {
+  bucket = "users-bucket"
+}
+
 resource "aws_sns_topic" "user_updates" {
   #tftag:developers
   name = "user-updates-topic"
@@ -53,9 +57,17 @@ $ tftag
 INFO[0000] Tagged `aws_sns_topic.user_updates` in main.tf
 ```
 
-### Result, your resource is updated
+### Your resources are updated
 
 ```
+resource "aws_sns_topic" "user_updates" {
+  name = "user-updates-topic"
+  tags = {
+    Pine  = "Apple"
+    Straw = "Berry"
+  }
+}
+
 resource "aws_sns_topic" "user_updates" {
   #tftag:developers
   name = "user-updates-topic"
