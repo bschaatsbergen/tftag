@@ -2,9 +2,10 @@ package core
 
 import (
 	"bytes"
-	"io/ioutil"
+	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/bschaatsbergen/tftag/pkg/helpers"
@@ -25,100 +26,131 @@ func Main(dir string) {
 		panic(err)
 	}
 
-	// Loop through all .tf files in the directory
 	files, err := os.ReadDir(dir)
 	if err != nil {
 		panic(err)
 	}
+
 	for _, file := range files {
 		if filepath.Ext(file.Name()) == ".tf" {
-			// Read the contents of the .tf file
-			tfBytes, err := os.ReadFile(filepath.Join(dir, file.Name()))
-			if err != nil {
+			if err := processFile(dir, config, file); err != nil {
 				panic(err)
 			}
-
-			// Parse the .tf file into an HCL AST
-			f, diags := hclwrite.ParseConfig(tfBytes, "", hcl.Pos{Line: 1, Column: 1})
-			if diags.HasErrors() {
-				panic(diags.Error())
-			}
-
-			// Loop through all blocks in the AST
-			for _, b := range f.Body().Blocks() {
-				// Extract the resource name, e.g. `aws_s3_bucket`
-				resource := b.Labels()[0]
-				// Extract the resource identifier, e.g. `default`
-				resourceIdentifier := b.Labels()[1]
-
-				tagsAttr := b.Body().GetAttribute("tags")
-				writeTokens := make([]*hclwrite.Token, 0)
-
-				if tagsAttr != nil {
-					buildTokens := tagsAttr.BuildTokens(nil)
-
-					buildTokens = buildTokens[2:]
-					depth := 0
-					for _, t := range buildTokens {
-						logrus.Info(t)
-
-						if t.Type == hclsyntax.TokenOBrace {
-							depth = depth + 1
-						}
-						if t.Type == hclsyntax.TokenCBrace {
-							depth = depth - 1
-							if depth == 0 {
-								break
-							}
-						}
-						writeTokens = append(writeTokens, t)
-					}
-				} else {
-					writeTokens = append(writeTokens,
-						&hclwrite.Token{
-							Type: hclsyntax.TokenOBrace, Bytes: []byte{'{'}, SpacesBefore: 1,
-						},
-					)
-					writeTokens = append(writeTokens,
-						&hclwrite.Token{
-							Type: hclsyntax.TokenNewline, Bytes: []byte{'\n'}, SpacesBefore: 1,
-						},
-					)
-				}
-
-				// Check if the Terraform resource contains a `#tftag:` filter comment
-				filter := getFilterComment(b)
-
-				// Determine whether the resource is supported by tftag
-				if helpers.IsTaggableResource(resource) {
-					setTags(config, b, filter, writeTokens)
-					logrus.Infof("Tagged `%s.%s` in %s\n", resource, resourceIdentifier, file.Name())
-				} else {
-					logrus.Warnf("Resource `%s.%s` in %s isn't taggable\n", resource, resourceIdentifier, file.Name())
-				}
-			}
-
-			// Write the modified AST back to the .tf file
-			if err := ioutil.WriteFile(filepath.Join(dir, file.Name()), []byte(f.Bytes()), os.ModePerm); err != nil {
-				panic(err)
-			}
-
 			logrus.Debugf("Tags added to %s\n", file.Name())
 		}
 	}
 }
 
-func isTokenInArray(token hclsyntax.TokenType, tokens []hclsyntax.TokenType) bool {
-	for _, v := range tokens {
-		if v == token {
+// getResourceInfo returns the resource type and identifier for the given block.
+func getResourceInfo(b *hclwrite.Block) (string, string) {
+	return b.Labels()[0], b.Labels()[1]
+}
+
+// getFilterComment retrieves the filter string from the tftag comment in the given HCL block.
+// The tftag comment must be in the form "// tftag:<filter>".
+func getFilterComment(b *hclwrite.Block) string {
+	var filter string
+
+	// Loop through every line in the Terraform resource
+	for _, attr := range b.Body().BuildTokens(nil) {
+		// If a line contains the tftag comment, extract anything after `:`
+		if bytes.HasPrefix(attr.Bytes, []byte(filterCommentPrefix)) {
+			filterComment := string(attr.Bytes)
+			value := filterComment[len(filterCommentPrefix):]
+			filter = strings.TrimSpace(value)
+			break
+		}
+	}
+	return filter
+}
+
+// processFile reads a Terraform file from the given directory and processes its resource blocks,
+// setting tags according to the provided configuration. The updated file is then written back to
+// disk. Returns an error if there was an issue reading or writing the file, or if there was an
+// issue parsing the file or its blocks.
+func processFile(dir string, config model.Config, file os.DirEntry) error {
+	// Read the contents of the file
+	tfBytes, err := os.ReadFile(filepath.Join(dir, file.Name()))
+	if err != nil {
+		return fmt.Errorf("failed to read file %s: %w", file.Name(), err)
+	}
+
+	// Parse the file using HCL2
+	f, diags := hclwrite.ParseConfig(tfBytes, "", hcl.Pos{Line: 1, Column: 1})
+	if diags.HasErrors() {
+		return fmt.Errorf("failed to parse file %s: %w", file.Name(), diags)
+	}
+
+	// Process each block in the file
+	for _, b := range f.Body().Blocks() {
+		// Get the resource type and identifier for this block
+		resourceType, resourceIdentifier := getResourceInfo(b)
+
+		// Get the "tags" attribute, if it exists
+		tagsAttr := b.Body().GetAttribute("tags")
+
+		// Determine the tokens to write for the "tags" attribute (or lack thereof)
+		var writeTokens []*hclwrite.Token
+		if tagsAttr != nil {
+			// If the "tags" attribute exists, extract the tokens between the braces
+			buildTokens := tagsAttr.BuildTokens(nil)
+			buildTokens = buildTokens[2:]
+			depth := 0
+			for _, t := range buildTokens {
+				if t.Type == hclsyntax.TokenOBrace {
+					depth++
+				} else if t.Type == hclsyntax.TokenCBrace {
+					depth--
+					if depth == 0 {
+						break
+					}
+				}
+				writeTokens = append(writeTokens, t)
+			}
+		} else {
+			// If the "tags" attribute doesn't exist, create an empty block
+			writeTokens = []*hclwrite.Token{
+				{Type: hclsyntax.TokenOBrace, Bytes: []byte{'{'}, SpacesBefore: 1},
+				{Type: hclsyntax.TokenNewline, Bytes: []byte{'\n'}, SpacesBefore: 1},
+			}
+		}
+
+		// Get the filter comment for this block (if it exists)
+		filter := getFilterComment(b)
+
+		// Set tags on this block if it's taggable
+		if helpers.IsTaggableResource(resourceType) {
+			setTags(config, b, filter, writeTokens)
+			logrus.Infof("Tagged `%s.%s` in %s\n", resourceType, resourceIdentifier, file.Name())
+		} else {
+			logrus.Warnf("Resource `%s.%s` in %s isn't taggable\n", resourceType, resourceIdentifier, file.Name())
+		}
+	}
+
+	// Write the updated file back to disk
+	if err := os.WriteFile(filepath.Join(dir, file.Name()), []byte(f.Bytes()), os.ModePerm); err != nil {
+		return fmt.Errorf("failed to write file %s: %w", file.Name(), err)
+	}
+
+	return nil
+}
+
+// isTokenInArray checks if a given token type is present in an array of token types.
+func isTokenInArray(tokenType hclsyntax.TokenType, tokenArray []hclsyntax.TokenType) bool {
+	for _, t := range tokenArray {
+		if tokenType == t {
 			return true
 		}
 	}
 	return false
 }
 
+// removeTagsFromExistingTokens removes tags from a list of HCL tokens by identifying the positions of
+// identifier tokens followed by equal tokens and checking if they match any of the provided tags. If a match
+// is found, the tokens between the previous identifier position and the current identifier position are skipped.
+// The resulting list of tokens is then returned.
 func removeTagsFromExistingTokens(tags map[string]string, tokens []*hclwrite.Token) []*hclwrite.Token {
-
+	// Identify token pairs that indicate the start and end of a nested expression
 	openPairs := []hclsyntax.TokenType{
 		hclsyntax.TokenOBrace,
 		hclsyntax.TokenOQuote,
@@ -135,34 +167,30 @@ func removeTagsFromExistingTokens(tags map[string]string, tokens []*hclwrite.Tok
 		hclsyntax.TokenCHeredoc,
 	}
 
+	// Keep track of the depth in the token hierarchy and the positions of identifier tokens
 	depth := 0
-	identifierPositions := make([]int, 0)
-	result := make([]*hclwrite.Token, 0, len(tokens))
-
+	identifierPositions := []int{}
 	for i, token := range tokens {
-
 		if isTokenInArray(token.Type, openPairs) {
-			depth = depth + 1
+			depth++
 		}
 		if isTokenInArray(token.Type, closingPairs) {
-			depth = depth - 1
+			depth--
 		}
-
-		if depth == 1 &&
-			token.Type == hclsyntax.TokenIdent &&
-			i+1 < len(tokens) &&
-			tokens[i+1].Type == hclsyntax.TokenEqual {
+		if depth == 1 && token.Type == hclsyntax.TokenIdent && i+1 < len(tokens) && tokens[i+1].Type == hclsyntax.TokenEqual {
 			identifierPositions = append(identifierPositions, i)
 		}
 	}
 
+	// Remove tokens between identifier positions that match the provided tags
 	previousPosition := 0
-	for i, identifierPosition := range identifierPositions {
+	result := []*hclwrite.Token{}
+	for _, identifierPosition := range identifierPositions {
 		name := string(tokens[identifierPosition].Bytes)
 		if _, ok := tags[name]; ok {
 			result = append(result, tokens[previousPosition:identifierPosition]...)
-			if i+1 < len(identifierPositions) {
-				previousPosition = identifierPositions[i+1]
+			if i := sort.SearchInts(identifierPositions, identifierPosition+1); i < len(identifierPositions) {
+				previousPosition = identifierPositions[i]
 			} else {
 				previousPosition = len(tokens)
 			}
@@ -172,71 +200,40 @@ func removeTagsFromExistingTokens(tags map[string]string, tokens []*hclwrite.Tok
 	return result
 }
 
-func getFilterComment(b *hclwrite.Block) string {
-	var filter string
-
-	// Loop through every line in the Terraform resource
-	for _, attr := range b.Body().BuildTokens(nil) {
-		// If a line contains the tftag comment, extract anything after `:`
-		if bytes.Contains(attr.Bytes, []byte(filterCommentPrefix)) {
-
-			filterComment := string(attr.Bytes)
-
-			tagPos := strings.Index(filterComment, filterCommentPrefix)
-
-			if tagPos != -1 {
-				value := filterComment[tagPos+len(filterCommentPrefix):]
-				filter = value
-			}
-		}
-	}
-	return filter
-}
-
+// appendTagsAsTokens appends HCL tokens representing the given tags to the provided slice of tokens.
+// It removes any existing tokens with the same key before appending new tokens.
+// The resulting tokens represent a series of HCL attribute assignments, one per tag,
+// in the format "key = "value"\n".
+// Returns the modified slice of tokens.
 func appendTagsAsTokens(tags map[string]string, tokens []*hclwrite.Token) []*hclwrite.Token {
+	// Remove existing tokens with the same key, if any
 	tokens = removeTagsFromExistingTokens(tags, tokens)
+
 	for key, val := range tags {
-		identToken := hclwrite.Token{
-			Type:         hclsyntax.TokenIdent,
-			Bytes:        []byte(key),
-			SpacesBefore: 0,
-		}
-		tokens = append(tokens, &identToken)
+		// Append identifier token for the tag key
+		tokens = append(tokens, &hclwrite.Token{
+			Type:  hclsyntax.TokenIdent,
+			Bytes: []byte(key),
+		})
 
-		equalToken := hclwrite.Token{
+		// Append equal sign token with space on either side
+		tokens = append(tokens, &hclwrite.Token{
 			Type:         hclsyntax.TokenEqual,
-			Bytes:        []byte("="),
+			Bytes:        []byte(" = "),
 			SpacesBefore: 1,
-		}
-		tokens = append(tokens, &equalToken)
+		})
 
-		oQuoteToken := hclwrite.Token{
-			Type:         hclsyntax.TokenOQuote,
-			Bytes:        []byte("\""),
-			SpacesBefore: 1,
-		}
-		tokens = append(tokens, &oQuoteToken)
+		// Append quoted literal token for the tag value
+		tokens = append(tokens, &hclwrite.Token{
+			Type:  hclsyntax.TokenQuotedLit,
+			Bytes: []byte(fmt.Sprintf(`"%s"`, val)),
+		})
 
-		valToken := hclwrite.Token{
-			Type:         hclsyntax.TokenQuotedLit,
-			Bytes:        []byte(val),
-			SpacesBefore: 0,
-		}
-		tokens = append(tokens, &valToken)
-
-		cQuoteToken := hclwrite.Token{
-			Type:         hclsyntax.TokenCQuote,
-			Bytes:        []byte("\""),
-			SpacesBefore: 1,
-		}
-		tokens = append(tokens, &cQuoteToken)
-
-		newLineToken := hclwrite.Token{
-			Type:         hclsyntax.TokenNewline,
-			Bytes:        []byte("\n"),
-			SpacesBefore: 0,
-		}
-		tokens = append(tokens, &newLineToken)
+		// Append newline token to separate tags
+		tokens = append(tokens, &hclwrite.Token{
+			Type:  hclsyntax.TokenNewline,
+			Bytes: []byte("\n"),
+		})
 	}
 
 	return tokens
@@ -264,5 +261,4 @@ func setTags(config model.Config, b *hclwrite.Block, filter string, tokens []*hc
 		SpacesBefore: 1,
 	})
 	b.Body().SetAttributeRaw("tags", tokens)
-
 }

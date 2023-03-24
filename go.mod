@@ -5,7 +5,7 @@ go 1.19
 require (
 	github.com/hashicorp/hcl/v2 v2.16.1
 	github.com/spf13/cobra v1.5.0
-	github.com/zclconf/go-cty v1.12.1
+	github.com/zclconf/go-cty v1.12.1 // indirect
 	golang.org/x/exp v0.0.0-20230224173230-c95f2b4c22f2
 )
 

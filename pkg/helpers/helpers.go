@@ -3,39 +3,37 @@ package helpers
 import (
 	"strings"
 
-	aws_resources "github.com/bschaatsbergen/tftag/pkg/resources/aws"
-	azure_resources "github.com/bschaatsbergen/tftag/pkg/resources/azure"
-	google_resources "github.com/bschaatsbergen/tftag/pkg/resources/google"
+	resources "github.com/bschaatsbergen/tftag/pkg/resources"
 	"golang.org/x/exp/slices"
 )
 
 const (
-	AWSProviderResourcePrefix    = "aws_"
-	GoogleProviderResourcePrefix = "google_"
-	AzureProviderResourcePrefix  = "azurerm_"
+	AWSResourcePrefix    = "aws_"
+	GoogleResourcePrefix = "google_"
+	AzureResourcePrefix  = "azurerm_"
 )
 
-func isAWSProviderResource(resource string) bool {
-	return strings.Contains(resource, AWSProviderResourcePrefix)
+func isAWSResource(resource string) bool {
+	return strings.Contains(resource, AWSResourcePrefix)
 }
 
-func isGoogleProviderResource(resource string) bool {
-	return strings.Contains(resource, GoogleProviderResourcePrefix)
+func isGoogleResource(resource string) bool {
+	return strings.Contains(resource, GoogleResourcePrefix)
 }
 
-func isAzureProviderResource(resource string) bool {
-	return strings.Contains(resource, AzureProviderResourcePrefix)
+func isAzureResource(resource string) bool {
+	return strings.Contains(resource, AzureResourcePrefix)
 }
 
 // IsTaggableResource returns true if the specified resource is taggable by the tftag supported providers.
 func IsTaggableResource(resource string) bool {
 	switch {
-	case isAWSProviderResource(resource):
-		return slices.Contains(aws_resources.AWS, resource)
-	case isGoogleProviderResource(resource):
-		return slices.Contains(google_resources.Google, resource)
-	case isAzureProviderResource(resource):
-		return slices.Contains(azure_resources.Azure, resource)
+	case isAWSResource(resource):
+		return slices.Contains(resources.AWS, resource)
+	case isGoogleResource(resource):
+		return slices.Contains(resources.Google, resource)
+	case isAzureResource(resource):
+		return slices.Contains(resources.Azure, resource)
 	default:
 		return false
 	}
