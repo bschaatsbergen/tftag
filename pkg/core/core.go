@@ -2,6 +2,7 @@ package core
 
 import (
 	"bytes"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 	"github.com/bschaatsbergen/tftag/pkg/model"
 
 	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/sirupsen/logrus"
 	"github.com/zclconf/go-cty/cty"
@@ -51,12 +53,36 @@ func Main(dir string) {
 				// Extract the resource identifier, e.g. `default`
 				resourceIdentifier := b.Labels()[1]
 
+				tagsAttr := b.Body().GetAttribute("tags")
+				toks := tagsAttr.BuildTokens(nil)
+				depth := 0
+				tokens := make([]*hclwrite.Token, 0)
+				var buffer bytes.Buffer
+				bufferWriter := io.Writer(&buffer)
+				for _, t := range toks {
+					logrus.Info(t)
+
+					if t.Type == hclsyntax.TokenOBrace {
+						depth = depth + 1
+					}
+					if t.Type == hclsyntax.TokenCBrace {
+						depth = depth - 1
+						if depth == 0 {
+							break
+						}
+					}
+					tokens = append(tokens, t)
+					bufferWriter.Write(t.Bytes)
+				}
+
+				logrus.Info(string(buffer.String()))
+
 				// Check if the Terraform resource contains a `#tftag:` filter comment
 				filter := getFilterComment(b)
 
 				// Determine whether the resource is supported by tftag
 				if helpers.IsTaggableResource(resource) {
-					setTags(config, b, filter)
+					setTags(config, b, filter, tokens)
 					logrus.Infof("Tagged `%s.%s` in %s\n", resource, resourceIdentifier, file.Name())
 				} else {
 					logrus.Warnf("Resource `%s.%s` in %s isn't taggable\n", resource, resourceIdentifier, file.Name())
@@ -95,17 +121,57 @@ func getFilterComment(b *hclwrite.Block) string {
 }
 
 // setTags sets the 'tags' attribute in the specified HCL block using the tags from the given tftag configuration.
-func setTags(config model.Config, b *hclwrite.Block, filter string) {
+func setTags(config model.Config, b *hclwrite.Block, filter string, tokens []*hclwrite.Token) {
 	matched := false
 	for _, tfTagConfig := range config.Config {
 		// Check if the filter matches the tftag config item
 		if strings.TrimSpace(tfTagConfig.Type) == strings.TrimSpace(filter) {
 			matched = true
-			ctyTags := make(map[string]cty.Value)
 			for key, val := range tfTagConfig.Tags {
-				ctyTags[key] = cty.StringVal(val)
+				identToken := hclwrite.Token{
+					Type:         hclsyntax.TokenIdent,
+					Bytes:        []byte(key),
+					SpacesBefore: 0,
+				}
+				tokens = append(tokens, &identToken)
+
+				equalToken := hclwrite.Token{
+					Type:         hclsyntax.TokenEqual,
+					Bytes:        []byte("="),
+					SpacesBefore: 1,
+				}
+				tokens = append(tokens, &equalToken)
+
+				oQuoteToken := hclwrite.Token{
+					Type:         hclsyntax.TokenOQuote,
+					Bytes:        []byte("\""),
+					SpacesBefore: 1,
+				}
+				tokens = append(tokens, &oQuoteToken)
+
+				valToken := hclwrite.Token{
+					Type:         hclsyntax.TokenQuotedLit,
+					Bytes:        []byte(val),
+					SpacesBefore: 0,
+				}
+				tokens = append(tokens, &valToken)
+
+				cQuoteToken := hclwrite.Token{
+					Type:         hclsyntax.TokenCQuote,
+					Bytes:        []byte("\""),
+					SpacesBefore: 1,
+				}
+				tokens = append(tokens, &cQuoteToken)
+
+				newLineToken := hclwrite.Token{
+					Type:         hclsyntax.TokenNewline,
+					Bytes:        []byte("\n"),
+					SpacesBefore: 0,
+				}
+				tokens = append(tokens, &newLineToken)
 			}
-			b.Body().SetAttributeValue("tags", cty.ObjectVal(ctyTags))
+
+			b.Body().SetAttributeRaw("tags", tokens)
 			break // Exit loop after first matching config item
 		}
 	}
