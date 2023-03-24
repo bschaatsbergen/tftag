@@ -9,7 +9,7 @@ require (
 	golang.org/x/exp v0.0.0-20230224173230-c95f2b4c22f2
 )
 
-require golang.org/x/sys v0.1.0 // indirect
+require github.com/sirupsen/logrus v1.9.0
 
 require (
 	github.com/agext/levenshtein v1.2.1 // indirect
@@ -17,7 +17,7 @@ require (
 	github.com/google/go-cmp v0.5.8 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/mitchellh/go-wordwrap v0.0.0-20150314170334-ad45545899c7 // indirect
-	github.com/sirupsen/logrus v1.9.0
 	github.com/spf13/pflag v1.0.5 // indirect
-	golang.org/x/text v0.3.8 // indirect
+	golang.org/x/sys v0.1.0 // indirect
+	golang.org/x/text v0.3.7 // indirect
 )
