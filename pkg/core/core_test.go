@@ -125,7 +125,7 @@ resource "aws_s3_bucket" "users" {
   bucket = "users-bucket"
   tags = {
     BusinessUnit = "Finance"
-    Pine         = "Apple"
+    Pine         = "Tree"
   }
 }
 
