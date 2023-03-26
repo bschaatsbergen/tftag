@@ -86,13 +86,19 @@ func processFile(dir string, config model.Config, file os.DirEntry) error {
 		// Get the resource type and identifier for this block
 		resourceType, resourceIdentifier := getResourceInfo(b)
 
-		// Get the "tags" attribute, if it exists
-		tagsAttr := b.Body().GetAttribute("tags")
+		// Get either `tags` or `labels` depending on the provider
+		resourceTagAttribute, err := helpers.GetResourceTagType(resourceType)
+		if err != nil {
+			panic(err)
+		}
 
-		// Determine the tokens to write for the "tags" attribute (or lack thereof)
+		// Get the "tags" or "labels" attribute, if it exists
+		tagsAttr := b.Body().GetAttribute(resourceTagAttribute)
+
+		// Determine the tokens to write for the "tags" or "labels" attribute (or lack thereof)
 		var writeTokens []*hclwrite.Token
 		if tagsAttr != nil {
-			// If the "tags" attribute exists, extract the tokens between the braces
+			// If the "tags" or "labels" attribute exists, extract the tokens between the braces
 			buildTokens := tagsAttr.BuildTokens(nil)
 			buildTokens = buildTokens[2:]
 			depth := 0
@@ -108,7 +114,7 @@ func processFile(dir string, config model.Config, file os.DirEntry) error {
 				writeTokens = append(writeTokens, t)
 			}
 		} else {
-			// If the "tags" attribute doesn't exist, create an empty block
+			// If the "tags" or "labels" attribute doesn't exist, create an empty block
 			writeTokens = []*hclwrite.Token{
 				{Type: hclsyntax.TokenOBrace, Bytes: []byte{'{'}, SpacesBefore: 1},
 				{Type: hclsyntax.TokenNewline, Bytes: []byte{'\n'}, SpacesBefore: 1},
@@ -120,7 +126,7 @@ func processFile(dir string, config model.Config, file os.DirEntry) error {
 
 		// Set tags on this block if it's taggable
 		if helpers.IsTaggableResource(resourceType) {
-			setTags(config, b, filter, writeTokens)
+			setTags(resourceTagAttribute, config, b, filter, writeTokens)
 			logrus.Infof("Tagged `%s.%s` in %s\n", resourceType, resourceIdentifier, file.Name())
 		} else {
 			logrus.Warnf("Resource `%s.%s` in %s isn't taggable\n", resourceType, resourceIdentifier, file.Name())
@@ -239,8 +245,8 @@ func appendTagsAsTokens(tags map[string]string, tokens []*hclwrite.Token) []*hcl
 	return tokens
 }
 
-// setTags sets the 'tags' attribute in the specified HCL block using the tags from the given tftag configuration.
-func setTags(config model.Config, b *hclwrite.Block, filter string, tokens []*hclwrite.Token) {
+// setTags sets the "tags" or "labels" attribute in the specified HCL block using the tags from the given tftag configuration.
+func setTags(resourceTagAttribute string, config model.Config, b *hclwrite.Block, filter string, tokens []*hclwrite.Token) {
 	matched := false
 	for _, tfTagConfig := range config.Config {
 		// Check if the filter matches the tftag config item
@@ -260,5 +266,6 @@ func setTags(config model.Config, b *hclwrite.Block, filter string, tokens []*hc
 		Bytes:        []byte("}"),
 		SpacesBefore: 1,
 	})
-	b.Body().SetAttributeRaw("tags", tokens)
+
+	b.Body().SetAttributeRaw(resourceTagAttribute, tokens)
 }
