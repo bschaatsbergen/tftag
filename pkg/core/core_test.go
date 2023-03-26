@@ -125,7 +125,7 @@ resource "aws_s3_bucket" "users" {
   bucket = "users-bucket"
   tags = {
     BusinessUnit = "Finance"
-    Pine         = "Tree"
+    Pine         = "Apple"
   }
 }
 
@@ -133,7 +133,7 @@ resource "google_workstations_workstation_cluster" "test" {
   workstation_cluster_id = "workstation-cluster"
   labels = {
     BusinessUnit = "Finance"
-    Pine         = "Tree"
+    Pine         = "Apple"
   }
 }
 `,
