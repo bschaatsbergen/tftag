@@ -90,7 +90,7 @@ resource "google_workstations_workstation_cluster" "test" {
   workstation_cluster_id = "workstation-cluster"
   labels = {
     BusinessUnit = "Finance"
-	Pine         = "Apple"
+    Pine         = "Apple"
   }
 }
 `,
