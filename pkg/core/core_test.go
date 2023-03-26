@@ -39,6 +39,13 @@ resource "google_workstations_workstation_cluster" "test" {
 `,
 			},
 			expect: `
+resource "aws_s3_bucket" "users" {
+  bucket = "users-bucket"
+  tags = {
+    Pine = "Apple"
+  }
+}
+
 resource "google_workstations_workstation_cluster" "test" {
   workstation_cluster_id = "workstation-cluster"
   labels = {
