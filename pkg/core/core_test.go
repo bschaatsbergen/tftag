@@ -22,7 +22,7 @@ func Test_processHCLFile(t *testing.T) {
 		expect string
 	}{
 		{
-			name: "add tags to resource without tags",
+			name: "add tags to resources without tags",
 			args: args{
 				config: model.Config{Config: []model.TfTagConfig{
 					{"all", map[string]string{"Pine": "Apple"}},
@@ -55,7 +55,7 @@ resource "google_workstations_workstation_cluster" "test" {
 `,
 		},
 		{
-			name: "add tags to resource with tags",
+			name: "add tags to resources with tags",
 			args: args{
 				config: model.Config{Config: []model.TfTagConfig{
 					{"all", map[string]string{"Pine": "Apple"}},
@@ -96,7 +96,7 @@ resource "google_workstations_workstation_cluster" "test" {
 `,
 		},
 		{
-			name: "override tags on resource with tags",
+			name: "override tags on resources with tags",
 			args: args{
 				config: model.Config{Config: []model.TfTagConfig{
 					{"all", map[string]string{"Pine": "Apple"}},
