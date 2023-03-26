@@ -132,8 +132,8 @@ resource "aws_s3_bucket" "users" {
 resource "google_workstations_workstation_cluster" "test" {
   workstation_cluster_id = "workstation-cluster"
   labels = {
-    Pine         = "Tree"
     BusinessUnit = "Finance"
+    Pine         = "Tree"
   }
 }
 `,
