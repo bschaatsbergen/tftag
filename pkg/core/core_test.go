@@ -36,7 +36,7 @@ resource "aws_s3_bucket" "users" {
 resource "aws_s3_bucket" "users" {
   bucket = "users-bucket"
   tags = {
-    Pine  = "Apple"
+    Pine = "Apple"
   }
 }
 `,
