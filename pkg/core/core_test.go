@@ -2,10 +2,11 @@ package core
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/bschaatsbergen/tftag/pkg/model"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclwrite"
-	"testing"
 )
 
 func Test_processHCLFile(t *testing.T) {
@@ -14,6 +15,7 @@ func Test_processHCLFile(t *testing.T) {
 		fileName string
 		body     string
 	}
+
 	tests := []struct {
 		name   string
 		args   args
@@ -23,34 +25,46 @@ func Test_processHCLFile(t *testing.T) {
 			name: "add tags to resource without tags",
 			args: args{
 				config: model.Config{Config: []model.TfTagConfig{
-					{"all", map[string]string{"Pine": "Apple"}}},
-				},
+					{"all", map[string]string{"Pine": "Apple"}},
+				}},
 				fileName: "",
 				body: `
 resource "aws_s3_bucket" "users" {
   bucket = "users-bucket"
 }
+
+resource "google_workstations_workstation_cluster" "test" {
+  workstation_cluster_id = "workstation-cluster"
+}
 `,
 			},
 			expect: `
-resource "aws_s3_bucket" "users" {
-  bucket = "users-bucket"
-  tags = {
+resource "google_workstations_workstation_cluster" "test" {
+  workstation_cluster_id = "workstation-cluster"
+  labels = {
     Pine = "Apple"
   }
 }
 `,
-		}, {
+		},
+		{
 			name: "add tags to resource with tags",
 			args: args{
 				config: model.Config{Config: []model.TfTagConfig{
-					{"all", map[string]string{"Pine": "Apple"}}},
-				},
+					{"all", map[string]string{"Pine": "Apple"}},
+				}},
 				fileName: "",
 				body: `
 resource "aws_s3_bucket" "users" {
   bucket = "users-bucket"
   tags = {
+    BusinessUnit = "Finance"
+  }
+}
+
+resource "google_workstations_workstation_cluster" "test" {
+  workstation_cluster_id = "workstation-cluster"
+  labels = {
     BusinessUnit = "Finance"
   }
 }
@@ -64,19 +78,36 @@ resource "aws_s3_bucket" "users" {
     Pine         = "Apple"
   }
 }
+
+resource "google_workstations_workstation_cluster" "test" {
+  workstation_cluster_id = "workstation-cluster"
+  labels = {
+    BusinessUnit = "Finance"
+	Pine         = "Apple"
+  }
+}
 `,
-		}, {
+		},
+		{
 			name: "override tags on resource with tags",
 			args: args{
 				config: model.Config{Config: []model.TfTagConfig{
-					{"all", map[string]string{"Pine": "Apple"}}},
-				},
+					{"all", map[string]string{"Pine": "Apple"}},
+				}},
 				fileName: "",
 				body: `
 resource "aws_s3_bucket" "users" {
   bucket = "users-bucket"
   tags = {
-    Pine = "Tree"
+    Pine         = "Tree"
+    BusinessUnit = "Finance"
+  }
+}
+
+resource "google_workstations_workstation_cluster" "test" {
+  workstation_cluster_id = "workstation-cluster"
+  labels = {
+	Pine         = "Tree"
     BusinessUnit = "Finance"
   }
 }
@@ -88,6 +119,14 @@ resource "aws_s3_bucket" "users" {
   tags = {
     BusinessUnit = "Finance"
     Pine         = "Apple"
+  }
+}
+
+resource "google_workstations_workstation_cluster" "test" {
+  workstation_cluster_id = "workstation-cluster"
+  labels = {
+    Pine         = "Tree"
+    BusinessUnit = "Finance"
   }
 }
 `,
@@ -104,7 +143,7 @@ resource "aws_s3_bucket" "users" {
 			processHCLFile(file, tt.args.config, tt.args.fileName)
 			result := string(hclwrite.Format(file.Bytes()))
 			if result != tt.expect {
-				t.Errorf("expected: %s, got :%s", tt.expect, result)
+				t.Errorf("expected: %s, got: %s", tt.expect, result)
 			}
 		})
 	}
