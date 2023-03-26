@@ -40,7 +40,7 @@ func IsTaggableResource(resource string) bool {
 	}
 }
 
-// GetResourceTagType returns the type of tags/labels associated with a given Terraform provider resource, or an error if the resource is not recognized.
+// GetResourceTagType returns the respective 'tags' attribute associated with a given Terraform provider resource, or an error if the resource is not recognized.
 func GetResourceTagType(resource string) (string, error) {
 	switch {
 	case isAWSResource(resource):
