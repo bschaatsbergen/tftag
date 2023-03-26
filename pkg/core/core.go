@@ -98,14 +98,19 @@ func processHCLFile(f *hclwrite.File, config model.Config, fileName string) {
 		// Get the resource type and identifier for this block
 		resourceType, resourceIdentifier := getResourceInfo(block)
 
-		writeTokens := getTagsAttribute(block)
+		resourceTagAttributeName, err := helpers.GetResourceTagType(resourceType)
+		if err != nil {
+			panic(err)
+		}
+
+		writeTokens := getTagsAttribute(block, resourceTagAttributeName)
 
 		// Get the filter comment for this block (if it exists)
 		filter := getFilterComment(block)
 
 		// Set tags on this block if it's taggable
 		if helpers.IsTaggableResource(resourceType) {
-			setTags(config, block, filter, writeTokens)
+			setTags(resourceTagAttributeName, config, block, filter, writeTokens)
 			logrus.Infof("Tagged `%s.%s` in %s\n", resourceType, resourceIdentifier, fileName)
 		} else {
 			logrus.Warnf("Resource `%s.%s` in %s isn't taggable\n", resourceType, resourceIdentifier, fileName)
@@ -113,9 +118,9 @@ func processHCLFile(f *hclwrite.File, config model.Config, fileName string) {
 	}
 }
 
-func getTagsAttribute(b *hclwrite.Block) []*hclwrite.Token {
+func getTagsAttribute(b *hclwrite.Block, resourceTagAttributeName string) []*hclwrite.Token {
 	// Get the "tags" attribute, if it exists
-	tagsAttr := b.Body().GetAttribute("tags")
+	tagsAttr := b.Body().GetAttribute(resourceTagAttributeName)
 
 	// Determine the tokens to write for the "tags" attribute (or lack thereof)
 	var writeTokens []*hclwrite.Token
@@ -250,7 +255,7 @@ func appendTagsAsTokens(tags map[string]string, tokens []*hclwrite.Token) []*hcl
 }
 
 // setTags sets the 'tags' attribute in the specified HCL block using the tags from the given tftag configuration.
-func setTags(config model.Config, b *hclwrite.Block, filter string, tokens []*hclwrite.Token) {
+func setTags(resourceTagAttributeName string, config model.Config, b *hclwrite.Block, filter string, tokens []*hclwrite.Token) {
 	matched := false
 	for _, tfTagConfig := range config.Config {
 		// Check if the filter matches the tftag config item
@@ -270,5 +275,5 @@ func setTags(config model.Config, b *hclwrite.Block, filter string, tokens []*hc
 		Bytes:        []byte("}"),
 		SpacesBefore: 1,
 	})
-	b.Body().SetAttributeRaw("tags", tokens)
+	b.Body().SetAttributeRaw(resourceTagAttributeName, tokens)
 }
