@@ -1,6 +1,7 @@
 package helpers
 
 import (
+	"fmt"
 	"strings"
 
 	resources "github.com/bschaatsbergen/tftag/pkg/resources"
@@ -36,5 +37,19 @@ func IsTaggableResource(resource string) bool {
 		return slices.Contains(resources.Azure, resource)
 	default:
 		return false
+	}
+}
+
+// GetResourceTagType returns the respective 'tags' attribute associated with a given Terraform provider resource, or an error if the resource is not recognized.
+func GetResourceTagType(resource string) (string, error) {
+	switch {
+	case isAWSResource(resource):
+		return "tags", nil
+	case isGoogleResource(resource):
+		return "labels", nil
+	case isAzureResource(resource):
+		return "tags", nil
+	default:
+		return "", fmt.Errorf("unkown Terraform provider resource")
 	}
 }

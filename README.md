@@ -4,6 +4,13 @@
 
 A DRY approach to tagging Terraform resources
 
+Supported Terraform providers:
+
+- [AWS](https://registry.terraform.io/providers/hashicorp/aws)
+- [Google](https://registry.terraform.io/providers/hashicorp/google)
+- [Google Beta](https://registry.terraform.io/providers/hashicorp/google-beta)
+- [Azure](https://registry.terraform.io/providers/hashicorp/azurerm)
+
 ## Brew
 
 To install tftag using brew, simply do the below.
