@@ -4,7 +4,7 @@
 
 A DRY approach to tagging Terraform resources
 
-Supports the following Terraform providers:
+Supported Terraform providers:
 
 - [AWS](https://registry.terraform.io/providers/hashicorp/aws)
 - [Google](https://registry.terraform.io/providers/hashicorp/google)
